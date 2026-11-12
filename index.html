@@ -210,9 +210,12 @@
         body: JSON.stringify({ action: action, accessToken: token, data: data || {} }),
         redirect: "follow"
       })
-      .then(r => r.json())
-      .then(j => {
-        if (!j.ok) throw new Error(j.error || "未知錯誤");
+      .then(r => r.text())
+      .then(text => {
+        let j;
+        try { j = JSON.parse(text); }
+        catch (e) { throw new Error("後端回傳非 JSON：" + text.slice(0, 150)); }
+        if (!j.ok) throw new Error(j.error || ("後端回應：" + text.slice(0, 150)));
         return j.data;
       });
     }
@@ -233,7 +236,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v3)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
