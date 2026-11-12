@@ -49,8 +49,12 @@
     .stepper span { flex: 1; text-align: center; font-size: 16px; font-weight: bold; }
     .btn-cancel { background: #999; margin-top: 8px; }
     .err-msg { color: #d32f2f; font-size: 12px; margin-top: 8px; display: none; }
-    .tabs { display: flex; gap: 6px; }
-    .tab-btn { flex: 1; padding: 8px 4px; border: 1px solid #ddd; background: #fff; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; color: #444; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .sel { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; background: #fff; box-sizing: border-box; }
+    .stu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stu { padding: 9px 8px; border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; font-size: 13px; cursor: pointer; text-align: left; color: #444; }
+    .stu.on { border-color: #06C755; background: #e8f8ee; color: #06C755; font-weight: bold; }
+    .tab-btn { flex: 1 1 28%; padding: 8px 4px; border: 1px solid #ddd; background: #fff; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; color: #444; }
     .tab-btn.active { background: #06C755; color: #fff; border-color: #06C755; }
   </style>
 </head>
@@ -119,11 +123,14 @@
       </div>
     </div>
     <div class="card">
-      <div class="tabs">
+      <div class="tabs" id="mainTabs">
         <button class="tab-btn" data-s="單打紀錄" onclick="setTeacherSheet('單打紀錄')">單打紀錄</button>
         <button class="tab-btn" data-s="雙打紀錄" onclick="setTeacherSheet('雙打紀錄')">雙打紀錄</button>
         <button class="tab-btn" data-s="學生分組表" onclick="setTeacherSheet('學生分組表')">學生名單</button>
+        <button class="tab-btn" data-s="團體賽紀錄" onclick="setTeacherSheet('團體賽紀錄')">團體賽</button>
+        <button class="tab-btn" data-s="__group__" onclick="setTeacherSheet('__group__')">🧩 分組配對</button>
       </div>
+      <div id="tListBox">
       <input type="text" id="tSearch" placeholder="搜尋（班級、姓名、學號…）" oninput="renderTeacherList()" style="margin-top:10px;">
       <div class="header-bar" style="margin:10px 0;">
         <span id="tCount" class="sub-info"></span>
@@ -132,7 +139,36 @@
           <button class="rebind-btn" style="background:#06C755; color:#fff;" onclick="openRowEditor(null)">➕ 新增</button>
         </div>
       </div>
-      <div id="tList"></div>
+      <div id="tList"></div></div>
+      <div id="groupBox" style="display:none; margin-top:10px;">
+        <span class="section-label">1. 選擇班級</span>
+        <select id="gClass" class="sel" onchange="loadGroupStudents()"></select>
+        <span class="section-label">2. 選擇賽制</span>
+        <div class="tabs" id="modeTabs">
+          <button type="button" class="tab-btn" data-m="single" onclick="setGroupMode('single')">單打</button>
+          <button type="button" class="tab-btn" data-m="double" onclick="setGroupMode('double')">雙打（2人一隊）</button>
+          <button type="button" class="tab-btn" data-m="team" onclick="setGroupMode('team')">團體賽</button>
+        </div>
+        <div id="gTeamSizeBox" style="display:none;">
+          <span class="section-label">每隊人數（2～4 人）</span>
+          <select id="gTeamSize" class="sel" onchange="renderGroupPreview()">
+            <option value="2">2 人一隊</option><option value="3">3 人一隊</option><option value="4">4 人一隊</option>
+          </select>
+        </div>
+        <span class="section-label">3. 組別編號</span>
+        <input type="text" id="gPool" placeholder="例：1">
+        <div class="header-bar" style="margin-top:12px;">
+          <span class="section-label" style="margin:0;">4. 依序點選學生（已選 <span id="gSelCount">0</span> 人）</span>
+          <div class="btn-group-sm">
+            <button type="button" class="rebind-btn" onclick="selectAllStudents(true)">全選</button>
+            <button type="button" class="rebind-btn" onclick="selectAllStudents(false)">清除</button>
+          </div>
+        </div>
+        <div class="sub-info" style="margin:4px 0 8px;">雙打／團體賽會依點選順序，每 2～4 人自動組成一隊。</div>
+        <div id="gStudents"></div>
+        <div id="gPreview"></div>
+        <button class="btn" id="gCreateBtn" onclick="createMatches()">產生對戰（循環賽）</button>
+      </div>
       <button class="btn btn-dark" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
     </div>
   </div>
@@ -291,7 +327,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v4)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v5)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -424,6 +460,118 @@
         .finally(() => { btn.disabled = false; btn.innerText = "綁定為老師"; });
     }
 
+    // ===== 老師：分組配對（單打／雙打／團體賽）=====
+    let gStudents = [], gSel = [], gMode = "single", gInited = false;
+
+    function initGroupPanel() {
+      setGroupMode(gMode);
+      if (gInited) return;
+      callApi("teacherRoster", { peclass: "" }).then(res => {
+        document.getElementById("gClass").innerHTML = (res.classes || [])
+          .map(c => '<option value="' + esc(c) + '">' + esc(c) + '</option>').join("");
+        gInited = true;
+        loadGroupStudents();
+      }).catch(err => alert("讀取班級失敗：" + err.message));
+    }
+
+    function loadGroupStudents() {
+      const cls = document.getElementById("gClass").value;
+      if (!cls) return;
+      document.getElementById("gStudents").innerText = "讀取中...";
+      callApi("teacherRoster", { peclass: cls }).then(res => {
+        gStudents = res.students || [];
+        gSel = [];
+        renderGroupStudents();
+      }).catch(err => { document.getElementById("gStudents").innerText = "讀取失敗：" + err.message; });
+    }
+
+    function setGroupMode(m) {
+      gMode = m;
+      document.querySelectorAll("#modeTabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.m === m));
+      document.getElementById("gTeamSizeBox").style.display = (m === "team") ? "block" : "none";
+      renderGroupPreview();
+    }
+
+    function toggleStudent(id) {
+      const i = gSel.indexOf(id);
+      if (i >= 0) gSel.splice(i, 1); else gSel.push(id);
+      renderGroupStudents();
+    }
+
+    function selectAllStudents(all) {
+      gSel = all ? gStudents.map(s => s.id) : [];
+      renderGroupStudents();
+    }
+
+    function renderGroupStudents() {
+      const box = document.getElementById("gStudents");
+      box.innerHTML = "";
+      if (!gStudents.length) { box.innerText = "此班級沒有學生資料。"; }
+      const grid = document.createElement("div");
+      grid.className = "stu-grid";
+      gStudents.forEach(s => {
+        const order = gSel.indexOf(s.id) + 1;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "stu" + (order ? " on" : "");
+        b.innerText = (order ? order + ". " : "") + s.name;
+        b.onclick = () => toggleStudent(s.id);
+        grid.appendChild(b);
+      });
+      box.appendChild(grid);
+      document.getElementById("gSelCount").innerText = gSel.length;
+      renderGroupPreview();
+    }
+
+    // 依點選順序切成每組 size 人
+    function buildGroups() {
+      const size = gMode === "single" ? 1 : gMode === "double" ? 2 : Number(document.getElementById("gTeamSize").value);
+      if (size > 1 && gSel.length % size !== 0) {
+        return { error: "已選 " + gSel.length + " 人，無法平均分成每隊 " + size + " 人（人數需為 " + size + " 的倍數）。" };
+      }
+      const groups = [];
+      for (let i = 0; i < gSel.length; i += size) groups.push(gSel.slice(i, i + size));
+      if (groups.length < 2) return { error: "至少需要 2 " + (size === 1 ? "位選手" : "隊") + " 才能配對。" };
+      return { groups: groups };
+    }
+
+    function renderGroupPreview() {
+      const el = document.getElementById("gPreview");
+      if (!gSel.length) { el.innerHTML = ""; return; }
+      const r = buildGroups();
+      if (r.error) { el.innerHTML = '<div class="err-msg" style="display:block;">' + esc(r.error) + '</div>'; return; }
+      const nm = id => (gStudents.find(s => s.id === id) || {}).name || id;
+      const n = r.groups.length;
+      let html = "";
+      if (gMode !== "single") {
+        html += r.groups.map((g, i) => '<div class="sub-info">隊伍 ' + (i + 1) + '：' + esc(g.map(nm).join(" & ")) + '</div>').join("");
+      }
+      html += '<div style="font-size:13px; font-weight:bold; margin-top:6px;">共 ' + n + (gMode === "single" ? " 位選手" : " 隊") +
+              '，將產生 ' + (n * (n - 1) / 2) + ' 場對戰（循環賽）</div>';
+      el.innerHTML = '<div class="set-box" style="margin-top:10px;">' + html + '</div>';
+    }
+
+    function createMatches() {
+      const cls = document.getElementById("gClass").value;
+      const pool = document.getElementById("gPool").value.trim();
+      if (!cls) { alert("請選擇班級！"); return; }
+      if (!pool) { alert("請輸入組別編號！"); return; }
+      const r = buildGroups();
+      if (r.error) { alert(r.error); return; }
+      const label = { single: "單打", double: "雙打", team: "團體賽" }[gMode];
+      const n = r.groups.length;
+      if (!confirm("確定建立【" + cls + "】第 " + pool + " 組的" + label + "對戰嗎？\n共 " + n + " 組，將產生 " + (n * (n - 1) / 2) + " 場（已存在的對戰會自動略過）。")) return;
+
+      const btn = document.getElementById("gCreateBtn");
+      btn.disabled = true; btn.innerText = "建立中...";
+      callApi("teacherCreateMatches", { mode: gMode, peclass: cls, pool: pool, groups: r.groups }).then(res => {
+        alert(res.message);
+        gSel = [];
+        renderGroupStudents();
+      }).catch(err => alert("建立失敗：" + err.message))
+        .finally(() => { btn.disabled = false; btn.innerText = "產生對戰（循環賽）"; });
+    }
+
     // ===== 老師：資料維護（新增／修改／刪除）=====
     let tSheet = "單打紀錄", tHeaders = [], tRows = [], tEditRow = null;
 
@@ -445,7 +593,11 @@
     }
 
     function loadTeacherData() {
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.s === tSheet));
+      document.querySelectorAll("#mainTabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.s === tSheet));
+      const isGroup = (tSheet === "__group__");
+      document.getElementById("tListBox").style.display = isGroup ? "none" : "block";
+      document.getElementById("groupBox").style.display = isGroup ? "block" : "none";
+      if (isGroup) { initGroupPanel(); return; }
       document.getElementById("tList").innerHTML = '<div class="sub-info" style="padding:16px; text-align:center;">讀取中...</div>';
       callApi("teacherList", { sheet: tSheet }).then(res => {
         tHeaders = res.headers || [];
