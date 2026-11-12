@@ -48,6 +48,10 @@
     .stepper button { width: 34px; height: 34px; border: none; background: #f1f3f5; font-size: 18px; font-weight: bold; cursor: pointer; }
     .stepper span { flex: 1; text-align: center; font-size: 16px; font-weight: bold; }
     .btn-cancel { background: #999; margin-top: 8px; }
+    .nA { color: #06C755; } .nB { color: #1976d2; }
+    .win-hint { font-size: 11px; color: #06C755; margin-left: 6px; }
+    .result-ok { background: #e8f8ee; color: #06C755; font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 14px; }
+    .result-wait { background: #f1f3f5; color: #777; padding: 10px; border-radius: 8px; margin-top: 10px; font-size: 13px; }
     .err-msg { color: #d32f2f; font-size: 12px; margin-top: 8px; display: none; }
     .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
     .sel { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; background: #fff; box-sizing: border-box; }
@@ -189,80 +193,59 @@
       <h3 style="margin-bottom:4px;">✅ 勾選比賽結果</h3>
       <div id="modalSubTitle" style="font-size:12px; color:#666; margin-bottom:10px;"></div>
 
-      <span class="section-label">1. 請勾選本場獲勝方：</span>
+      <span class="section-label">1. 賽制</span>
       <div class="check-group">
-        <label class="check-option">
-          <input type="radio" name="winnerSide" value="A" checked onchange="syncPresetScores()">
-          <div class="check-card"><span class="check-icon">☑</span><span id="labelSideA">A方</span></div>
-        </label>
-        <label class="check-option">
-          <input type="radio" name="winnerSide" value="B" onchange="syncPresetScores()">
-          <div class="check-card"><span class="check-icon">☑</span><span id="labelSideB">B方</span></div>
-        </label>
+        <label class="check-option"><input type="radio" name="gameFormat" value="bo3" checked onchange="updateSets()"><div class="check-card">三局兩勝</div></label>
+        <label class="check-option"><input type="radio" name="gameFormat" value="bo1" onchange="updateSets()"><div class="check-card">單局制</div></label>
       </div>
 
-      <span class="section-label">2. 請勾選總局數比：</span>
-      <div class="check-group">
-        <label class="check-option" style="min-width:30%;">
-          <input type="radio" name="gameRatio" value="2:0" checked onchange="toggleSet3(false); syncPresetScores();">
-          <div class="check-card">2 : 0 (直落二)</div>
-        </label>
-        <label class="check-option" style="min-width:30%;">
-          <input type="radio" name="gameRatio" value="2:1" onchange="toggleSet3(true); syncPresetScores();">
-          <div class="check-card">2 : 1 (打滿三局)</div>
-        </label>
-        <label class="check-option" style="min-width:30%;">
-          <input type="radio" name="gameRatio" value="1:0" onchange="toggleSet3(false); syncPresetScores();">
-          <div class="check-card">1 : 0 (單局制)</div>
-        </label>
-      </div>
-
-      <span class="section-label">3. 各局得分（可點選快捷比分或 +/- 微調）：</span>
-
+      <span class="section-label">2. 輸入各局比分（<span class="nA">左</span> 邊分數＝左邊選手，<span class="nB">右</span> 邊分數＝右邊選手）</span>
       <div class="set-box" id="boxSet1">
         <div class="set-header">
-          <span>第 1 局</span>
-          <div class="preset-chips">
-            <button type="button" class="chip" onclick="applyQuickScore(1, 21, 15)">21:15</button>
-            <button type="button" class="chip" onclick="applyQuickScore(1, 11, 7)">11:7</button>
-          </div>
+          <span>第 1 局<span id="w1" class="win-hint"></span></span>
+          <div class="preset-chips"><button type="button" class="chip" onclick="applyQuickScore(1, 21, 15)">21:15</button><button type="button" class="chip" onclick="applyQuickScore(1, 15, 21)">15:21</button><button type="button" class="chip" onclick="applyQuickScore(1, 11, 7)">11:7</button><button type="button" class="chip" onclick="applyQuickScore(1, 7, 11)">7:11</button></div>
+        </div>
+        <div class="stepper-row" style="font-size:12px; font-weight:bold; margin-bottom:4px;">
+          <span class="nA" style="flex:1; text-align:center;"></span><span style="width:10px;"></span><span class="nB" style="flex:1; text-align:center;"></span>
         </div>
         <div class="stepper-row">
-          <div class="stepper"><button type="button" onclick="stepScore('s1_a', -1)">-</button><span id="s1_a">21</span><button type="button" onclick="stepScore('s1_a', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s1_a', -1)">-</button><span id="s1_a">0</span><button type="button" onclick="stepScore('s1_a', 1)">+</button></div>
           <strong>:</strong>
-          <div class="stepper"><button type="button" onclick="stepScore('s1_b', -1)">-</button><span id="s1_b">15</span><button type="button" onclick="stepScore('s1_b', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s1_b', -1)">-</button><span id="s1_b">0</span><button type="button" onclick="stepScore('s1_b', 1)">+</button></div>
         </div>
       </div>
 
       <div class="set-box" id="boxSet2">
         <div class="set-header">
-          <span>第 2 局</span>
-          <div class="preset-chips">
-            <button type="button" class="chip" onclick="applyQuickScore(2, 21, 15)">21:15</button>
-            <button type="button" class="chip" onclick="applyQuickScore(2, 11, 7)">11:7</button>
-          </div>
+          <span>第 2 局<span id="w2" class="win-hint"></span></span>
+          <div class="preset-chips"><button type="button" class="chip" onclick="applyQuickScore(2, 21, 15)">21:15</button><button type="button" class="chip" onclick="applyQuickScore(2, 15, 21)">15:21</button><button type="button" class="chip" onclick="applyQuickScore(2, 11, 7)">11:7</button><button type="button" class="chip" onclick="applyQuickScore(2, 7, 11)">7:11</button></div>
+        </div>
+        <div class="stepper-row" style="font-size:12px; font-weight:bold; margin-bottom:4px;">
+          <span class="nA" style="flex:1; text-align:center;"></span><span style="width:10px;"></span><span class="nB" style="flex:1; text-align:center;"></span>
         </div>
         <div class="stepper-row">
-          <div class="stepper"><button type="button" onclick="stepScore('s2_a', -1)">-</button><span id="s2_a">21</span><button type="button" onclick="stepScore('s2_a', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s2_a', -1)">-</button><span id="s2_a">0</span><button type="button" onclick="stepScore('s2_a', 1)">+</button></div>
           <strong>:</strong>
-          <div class="stepper"><button type="button" onclick="stepScore('s2_b', -1)">-</button><span id="s2_b">15</span><button type="button" onclick="stepScore('s2_b', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s2_b', -1)">-</button><span id="s2_b">0</span><button type="button" onclick="stepScore('s2_b', 1)">+</button></div>
         </div>
       </div>
 
       <div class="set-box" id="boxSet3" style="display:none;">
         <div class="set-header">
-          <span>第 3 局 (決勝局)</span>
-          <div class="preset-chips">
-            <button type="button" class="chip" onclick="applyQuickScore(3, 21, 18)">21:18</button>
-            <button type="button" class="chip" onclick="applyQuickScore(3, 11, 9)">11:9</button>
-          </div>
+          <span>第 3 局 (決勝局)<span id="w3" class="win-hint"></span></span>
+          <div class="preset-chips"><button type="button" class="chip" onclick="applyQuickScore(3, 21, 15)">21:15</button><button type="button" class="chip" onclick="applyQuickScore(3, 15, 21)">15:21</button><button type="button" class="chip" onclick="applyQuickScore(3, 11, 7)">11:7</button><button type="button" class="chip" onclick="applyQuickScore(3, 7, 11)">7:11</button></div>
+        </div>
+        <div class="stepper-row" style="font-size:12px; font-weight:bold; margin-bottom:4px;">
+          <span class="nA" style="flex:1; text-align:center;"></span><span style="width:10px;"></span><span class="nB" style="flex:1; text-align:center;"></span>
         </div>
         <div class="stepper-row">
-          <div class="stepper"><button type="button" onclick="stepScore('s3_a', -1)">-</button><span id="s3_a">21</span><button type="button" onclick="stepScore('s3_a', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s3_a', -1)">-</button><span id="s3_a">0</span><button type="button" onclick="stepScore('s3_a', 1)">+</button></div>
           <strong>:</strong>
-          <div class="stepper"><button type="button" onclick="stepScore('s3_b', -1)">-</button><span id="s3_b">18</span><button type="button" onclick="stepScore('s3_b', 1)">+</button></div>
+          <div class="stepper"><button type="button" onclick="stepScore('s3_b', -1)">-</button><span id="s3_b">0</span><button type="button" onclick="stepScore('s3_b', 1)">+</button></div>
         </div>
       </div>
+
+      <div id="resultSummary" class="result-wait"></div>
 
       <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:13px; cursor:pointer;">
         <input type="checkbox" id="confirmCheck" checked style="width:18px; height:18px; accent-color:#06C755;">
@@ -327,7 +310,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v7)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v8)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -713,56 +696,75 @@
     function openScoreModal(match) {
       selectedMatch = match;
       document.getElementById("modalSubTitle").innerText = `【${match.typeLabel}】${match.peclass} 第 ${match.pool} 組`;
-      document.getElementById("labelSideA").innerText = match.sideA.name;
-      document.getElementById("labelSideB").innerText = match.sideB.name;
+      document.querySelectorAll(".nA").forEach(el => { if (el.id !== "x") el.innerText = el.closest(".set-box") ? "左・" + match.sideA.name : el.innerText; });
+      document.querySelectorAll(".nB").forEach(el => { if (el.id !== "x") el.innerText = el.closest(".set-box") ? "右・" + match.sideB.name : el.innerText; });
 
-      document.querySelector('input[name="winnerSide"][value="A"]').checked = true;
-      document.querySelector('input[name="gameRatio"][value="2:0"]').checked = true;
+      document.querySelector('input[name="gameFormat"][value="bo3"]').checked = true;
+      ["s1_a", "s1_b", "s2_a", "s2_b", "s3_a", "s3_b"].forEach(id => setVal(id, 0));
       document.getElementById("confirmCheck").checked = true;
-      toggleSet3(false);
-      syncPresetScores();
+      updateSets();
       document.getElementById("scoreModal").style.display = "flex";
     }
 
-    function toggleSet3(show) {
-      document.getElementById("boxSet3").style.display = show ? "block" : "none";
-      const ratio = document.querySelector('input[name="gameRatio"]:checked').value;
-      document.getElementById("boxSet2").style.display = (ratio === "1:0") ? "none" : "block";
+    function readFormat() {
+      return document.querySelector('input[name="gameFormat"]:checked').value;
     }
 
-    function syncPresetScores() {
-      const winner = document.querySelector('input[name="winnerSide"]:checked').value;
-      const ratio = document.querySelector('input[name="gameRatio"]:checked').value;
-      const winPts = 21, losePts = 15;
+    function setWinner(i) {
+      const a = getVal("s" + i + "_a"), b = getVal("s" + i + "_b");
+      return a > b ? "A" : (b > a ? "B" : "");
+    }
 
-      if (winner === 'A') {
-        setVal('s1_a', winPts); setVal('s1_b', losePts);
-        if (ratio === '2:1') {
-          setVal('s2_a', losePts); setVal('s2_b', winPts);
-          setVal('s3_a', winPts); setVal('s3_b', 18);
-        } else {
-          setVal('s2_a', winPts); setVal('s2_b', losePts);
-        }
+    // 依各局比分計算：誰贏幾局、是否已分出勝負（勝方完全由比分決定）
+    function calcSets() {
+      const bo1 = readFormat() === "bo1";
+      const need = bo1 ? 1 : 2;
+      const played = [];
+      let wa = 0, wb = 0, invalid = false;
+      for (let i = 1; i <= (bo1 ? 1 : 3); i++) {
+        if (i === 3 && !(wa === 1 && wb === 1)) break;
+        const a = getVal("s" + i + "_a"), b = getVal("s" + i + "_b");
+        played.push({ a: a, b: b });
+        if (a === b) { invalid = true; break; }
+        if (a > b) wa++; else wb++;
+        if (wa === need || wb === need) break;
+      }
+      const done = !invalid && (wa === need || wb === need);
+      return { played: played, wa: wa, wb: wb, done: done, winner: done ? (wa > wb ? "A" : "B") : null };
+    }
+
+    function updateSets() {
+      const bo1 = readFormat() === "bo1";
+      document.getElementById("boxSet2").style.display = bo1 ? "none" : "block";
+      // 第 3 局：只有前兩局各勝一局時才出現
+      const showSet3 = !bo1 && setWinner(1) && setWinner(2) && setWinner(1) !== setWinner(2);
+      document.getElementById("boxSet3").style.display = showSet3 ? "block" : "none";
+      for (let i = 1; i <= 3; i++) {
+        const w = setWinner(i);
+        document.getElementById("w" + i).innerText = w === "A" ? "（左勝）" : (w === "B" ? "（右勝）" : "");
+      }
+      const el = document.getElementById("resultSummary");
+      const r = calcSets();
+      if (r.done && selectedMatch) {
+        const side = r.winner === "A" ? selectedMatch.sideA : selectedMatch.sideB;
+        el.className = "result-ok";
+        el.innerText = "🏆 勝方：" + (r.winner === "A" ? "左・" : "右・") + side.name + "（局數 " + r.wa + " : " + r.wb + "）";
       } else {
-        setVal('s1_a', losePts); setVal('s1_b', winPts);
-        if (ratio === '2:1') {
-          setVal('s2_a', winPts); setVal('s2_b', losePts);
-          setVal('s3_a', 18); setVal('s3_b', winPts);
-        } else {
-          setVal('s2_a', losePts); setVal('s2_b', winPts);
-        }
+        el.className = "result-wait";
+        el.innerText = "請輸入各局比分（不可平手），系統會依比分自動判定勝方。";
       }
     }
 
-    function applyQuickScore(setNum, winScore, loseScore) {
-      const winner = document.querySelector('input[name="winnerSide"]:checked').value;
-      setVal(`s${setNum}_a`, winner === 'A' ? winScore : loseScore);
-      setVal(`s${setNum}_b`, winner === 'B' ? winScore : loseScore);
+    function applyQuickScore(setNum, a, b) {
+      setVal("s" + setNum + "_a", a);
+      setVal("s" + setNum + "_b", b);
+      updateSets();
     }
 
     function stepScore(elId, delta) {
       const el = document.getElementById(elId);
       el.innerText = Math.max(0, Number(el.innerText) + delta);
+      updateSets();
     }
 
     function setVal(id, val) { document.getElementById(id).innerText = val; }
@@ -781,10 +783,9 @@
       }
 
       const matchCopy = Object.assign({}, selectedMatch);
-      const ratio = document.querySelector('input[name="gameRatio"]:checked').value;
-      const scores = [{ a: getVal('s1_a'), b: getVal('s1_b') }];
-      if (ratio !== '1:0') scores.push({ a: getVal('s2_a'), b: getVal('s2_b') });
-      if (ratio === '2:1') scores.push({ a: getVal('s3_a'), b: getVal('s3_b') });
+      const sets = calcSets();
+      if (!sets.done) { alert("尚未分出勝負，請確認各局比分（不可平手）。"); return; }
+      const scores = sets.played;
 
       const totalA = scores.reduce((sum, s) => sum + s.a, 0);
       const totalB = scores.reduce((sum, s) => sum + s.b, 0);
