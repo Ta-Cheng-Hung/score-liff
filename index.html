@@ -281,7 +281,7 @@
     // 您的 LINE 官方帳號 Basic ID（含 @），例如 "@123abcde"
     const MY_BOT_BASIC_ID = "@241jqyyw";
     // GAS 網頁應用程式部署網址（結尾是 /exec）
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxyEwGdX6vusSc12pR3p8jqoEpTuqrD51xthxpLBjACTmHwSLL_ROAuQAsZLyo6ny3DMQ/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyL41Sh9ZgjNoyRF1U7g4E3j_aZFFvyUkAfmU1caCNrMKYmoXLoZXuq7mWrvbHxL1pQCQ/exec";
     // ================================
 
     let liffReady = false;       // LIFF 是否初始化成功
@@ -327,7 +327,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v5)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v6)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -462,6 +462,8 @@
 
     // ===== 老師：分組配對（單打／雙打／團體賽）=====
     let gStudents = [], gSel = [], gMode = "single", gInited = false;
+    let gDone = { single: {}, double: {}, team: {} };   // 各賽制已完成配對的學生（從畫面移除）
+    function visibleStudents() { return gStudents.filter(s => !gDone[gMode][s.id]); }
 
     function initGroupPanel() {
       setGroupMode(gMode);
@@ -480,6 +482,7 @@
       document.getElementById("gStudents").innerText = "讀取中...";
       callApi("teacherRoster", { peclass: cls }).then(res => {
         gStudents = res.students || [];
+        gDone = { single: {}, double: {}, team: {} };
         gSel = [];
         renderGroupStudents();
       }).catch(err => { document.getElementById("gStudents").innerText = "讀取失敗：" + err.message; });
@@ -489,7 +492,8 @@
       gMode = m;
       document.querySelectorAll("#modeTabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.m === m));
       document.getElementById("gTeamSizeBox").style.display = (m === "team") ? "block" : "none";
-      renderGroupPreview();
+      gSel = [];
+      if (gStudents.length) renderGroupStudents(); else renderGroupPreview();
     }
 
     function toggleStudent(id) {
@@ -499,17 +503,17 @@
     }
 
     function selectAllStudents(all) {
-      gSel = all ? gStudents.map(s => s.id) : [];
+      gSel = all ? visibleStudents().map(s => s.id) : [];
       renderGroupStudents();
     }
 
     function renderGroupStudents() {
       const box = document.getElementById("gStudents");
       box.innerHTML = "";
-      if (!gStudents.length) { box.innerText = "此班級沒有學生資料。"; }
+      if (!visibleStudents().length) { box.innerText = gStudents.length ? "所有學生都已完成配對。" : "此班級沒有學生資料。"; }
       const grid = document.createElement("div");
       grid.className = "stu-grid";
-      gStudents.forEach(s => {
+      visibleStudents().forEach(s => {
         const order = gSel.indexOf(s.id) + 1;
         const b = document.createElement("button");
         b.type = "button";
@@ -566,6 +570,7 @@
       btn.disabled = true; btn.innerText = "建立中...";
       callApi("teacherCreateMatches", { mode: gMode, peclass: cls, pool: pool, groups: r.groups }).then(res => {
         alert(res.message);
+        r.groups.forEach(g => g.forEach(id => { gDone[gMode][id] = true; }));   // 配對完從畫面移除
         gSel = [];
         renderGroupStudents();
       }).catch(err => alert("建立失敗：" + err.message))
