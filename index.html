@@ -60,6 +60,20 @@
     .stu.on { border-color: #06C755; background: #e8f8ee; color: #06C755; font-weight: bold; }
     .tab-btn { flex: 1 1 28%; padding: 8px 4px; border: 1px solid #ddd; background: #fff; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; color: #444; }
     .tab-btn.active { background: #06C755; color: #fff; border-color: #06C755; }
+
+    /* 統計看板與積分排行榜樣式 */
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0; }
+    .stat-box { background: #f8f9fa; border: 1px solid #eee; border-radius: 8px; padding: 8px 4px; text-align: center; }
+    .stat-num { font-size: 17px; font-weight: bold; color: #06C755; }
+    .stat-lbl { font-size: 11px; color: #666; margin-top: 2px; }
+    .progress-bar { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 6px 0 12px; }
+    .progress-fill { height: 100%; background: #06C755; transition: width 0.3s; }
+    .rank-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    .rank-table th { background: #f1f3f5; color: #555; padding: 8px 4px; text-align: center; font-size: 12px; }
+    .rank-table td { padding: 9px 4px; border-bottom: 1px solid #eee; text-align: center; }
+    .rank-table td.name-col, .rank-table th.name-col { text-align: left; padding-left: 6px; }
+    .rank-1 { color: #d97706; font-weight: bold; }
+    .my-row { background: #e8f8ee; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -100,9 +114,14 @@
           <button class="close-top-btn" onclick="closeLiffWindow()">✕ 關閉</button>
         </div>
       </div>
+      <!-- 學生端分頁切換：我的賽程 / 比賽統計 -->
+      <div class="tabs" style="margin-top:12px;">
+        <button class="tab-btn active" id="stuTabMatch" onclick="switchStudentTab('match')">📋 我的賽程</button>
+        <button class="tab-btn" id="stuTabStats" onclick="switchStudentTab('stats')">📊 比賽統計與排名</button>
+      </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="stuMatchCard">
       <div class="header-bar" style="margin-bottom:12px;">
         <h3 style="margin:0;">📋 我的所有賽程</h3>
         <button class="rebind-btn" onclick="loadDashboard(false)">↻ 重新整理</button>
@@ -133,17 +152,19 @@
         <button class="tab-btn" data-s="學生分組表" onclick="setTeacherSheet('學生分組表')">學生名單</button>
         <button class="tab-btn" data-s="團體賽紀錄" onclick="setTeacherSheet('團體賽紀錄')">團體賽</button>
         <button class="tab-btn" data-s="__group__" onclick="setTeacherSheet('__group__')">🧩 分組配對</button>
+        <button class="tab-btn" data-s="__stats__" onclick="setTeacherSheet('__stats__')">📊 比賽統計</button>
       </div>
       <div id="tListBox">
-      <input type="text" id="tSearch" placeholder="搜尋（班級、姓名、學號…）" oninput="renderTeacherList()" style="margin-top:10px;">
-      <div class="header-bar" style="margin:10px 0;">
-        <span id="tCount" class="sub-info"></span>
-        <div class="btn-group-sm">
-          <button class="rebind-btn" onclick="loadTeacherData()">↻ 重新整理</button>
-          <button class="rebind-btn" style="background:#06C755; color:#fff;" onclick="openRowEditor(null)">➕ 新增</button>
+        <input type="text" id="tSearch" placeholder="搜尋（班級、姓名、學號…）" oninput="renderTeacherList()" style="margin-top:10px;">
+        <div class="header-bar" style="margin:10px 0;">
+          <span id="tCount" class="sub-info"></span>
+          <div class="btn-group-sm">
+            <button class="rebind-btn" onclick="loadTeacherData()">↻ 重新整理</button>
+            <button class="rebind-btn" style="background:#06C755; color:#fff;" onclick="openRowEditor(null)">➕ 新增</button>
+          </div>
         </div>
+        <div id="tList"></div>
       </div>
-      <div id="tList"></div></div>
       <div id="groupBox" style="display:none; margin-top:10px;">
         <span class="section-label">1. 選擇班級</span>
         <select id="gClass" class="sel" onchange="loadGroupStudents()"></select>
@@ -173,8 +194,58 @@
         <div id="gPreview"></div>
         <button class="btn" id="gCreateBtn" onclick="createMatches()">產生對戰（循環賽）</button>
       </div>
-      <button class="btn btn-dark" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
+      <button class="btn btn-dark" id="teacherCloseBtn" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
     </div>
+  </div>
+
+  <!-- 共用：比賽統計與積分排行榜區塊 -->
+  <div id="statsBox" class="card" style="display:none;">
+    <div class="header-bar" style="margin-bottom:10px;">
+      <h3 style="margin:0;">📊 比賽統計與積分榜</h3>
+      <button class="rebind-btn" onclick="loadStats(false)">↻ 更新數據</button>
+    </div>
+
+    <!-- 篩選條件：班級 / 賽制 / 組別 -->
+    <div style="display:flex; gap:6px; margin-bottom:8px;">
+      <select id="stClass" class="sel" style="flex:1;" onchange="loadStats(true)"></select>
+      <select id="stType" class="sel" style="flex:1;" onchange="loadStats(true)">
+        <option value="single">單打</option>
+        <option value="double">雙打</option>
+        <option value="team">團體賽</option>
+      </select>
+      <select id="stPool" class="sel" style="flex:1;" onchange="loadStats(false)">
+        <option value="ALL">全部組別</option>
+      </select>
+    </div>
+
+    <!-- 賽事進度條與總覽數據 -->
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-num" id="stTotal">0</div><div class="stat-lbl">總場次</div></div>
+      <div class="stat-box"><div class="stat-num" id="stDone" style="color:#06C755;">0</div><div class="stat-lbl">已完賽</div></div>
+      <div class="stat-box"><div class="stat-num" id="stPending" style="color:#ef6c00;">0</div><div class="stat-lbl">待比賽</div></div>
+      <div class="stat-box"><div class="stat-num" id="stProg" style="color:#1976d2;">0%</div><div class="stat-lbl">完賽率</div></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="stProgBar" style="width:0%;"></div></div>
+
+    <!-- 積分排行榜明細表 -->
+    <div style="overflow-x:auto;">
+      <table class="rank-table">
+        <thead>
+          <tr>
+            <th style="width:32px;">#</th>
+            <th class="name-col">選手 / 隊伍</th>
+            <th>戰績</th>
+            <th>勝率</th>
+            <th>得/失分</th>
+            <th>淨分</th>
+            <th>積分</th>
+          </tr>
+        </thead>
+        <tbody id="stRankBody"></tbody>
+      </table>
+    </div>
+    <div class="sub-info" style="margin-top:8px;">※ 僅採計已完賽 (GAME=yes) 場次；勝場 2 分，依積分 &gt; 淨勝分 &gt; 勝場排序。</div>
+    <button class="btn btn-dark" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
   </div>
 
   <!-- 資料編輯視窗 -->
@@ -258,29 +329,23 @@
   </div>
 
   <script>
-    // ===== 請在此填入您的設定值 =====
-    // 注意：LIFF ID 只填 "數字-英數字"，不要包含 https://liff.line.me/
     const MY_LIFF_ID = "2012562883-jBwg6hLv";
-    // 您的 LINE 官方帳號 Basic ID（含 @），例如 "@123abcde"
     const MY_BOT_BASIC_ID = "@241jqyyw";
-    // GAS 網頁應用程式部署網址（結尾是 /exec）
     const GAS_URL = "https://script.google.com/macros/s/AKfycbyL41Sh9ZgjNoyRF1U7g4E3j_aZFFvyUkAfmU1caCNrMKYmoXLoZXuq7mWrvbHxL1pQCQ/exec";
-    // ================================
 
-    let liffReady = false;       // LIFF 是否初始化成功
+    let liffReady = false;
     let liffInitError = "";
     let currentLineUserId = "";
     let currentStudent = null;
     let currentMatches = [];
     let selectedMatch = null;
 
-    // ---- 呼叫 GAS API（以 LINE access token 驗證身分）----
     function callApi(action, data) {
       const token = liffReady ? liff.getAccessToken() : null;
       if (!token) return Promise.reject(new Error("尚未取得 LINE 登入資訊"));
       return fetch(GAS_URL, {
         method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },  // 避免 CORS 預檢請求
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({ action: action, accessToken: token, data: data || {} }),
         redirect: "follow"
       })
@@ -310,7 +375,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v8)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v9-Stats)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -326,9 +391,7 @@
       });
     });
 
-    // ===== 關閉視窗（已修正）=====
     function closeLiffWindow() {
-      // 1. LIFF 正常且在 LINE App 內 → 直接關閉
       try {
         if (liffReady && liff.isInClient()) {
           liff.closeWindow();
@@ -338,7 +401,6 @@
         console.log("closeWindow error:", e);
       }
 
-      // 2. 備援：開啟官方帳號聊天室（@ 需編碼為 %40）
       if (MY_BOT_BASIC_ID && MY_BOT_BASIC_ID !== "@your_bot_id") {
         const url = "https://line.me/R/ti/p/" + encodeURIComponent(MY_BOT_BASIC_ID);
         try {
@@ -350,7 +412,6 @@
         return;
       }
 
-      // 3. 都不行 → 提示手動返回
       alert("無法自動關閉" + (liffInitError ? "（" + liffInitError + "）" : "（請用 LINE 內的 LIFF 連結開啟）") + "。\n請手動點選左上角「✕」回到 LINE。");
     }
 
@@ -358,6 +419,7 @@
       document.getElementById("loadingBox").style.display = "none";
       document.getElementById("dashboardBox").style.display = "none";
       document.getElementById("teacherBox").style.display = "none";
+      document.getElementById("statsBox").style.display = "none";
       document.getElementById("bindBox").style.display = "block";
       if (hintText) {
         const errEl = document.getElementById("bindErr");
@@ -372,6 +434,7 @@
         document.getElementById("teacherBox").style.display = "none";
         document.getElementById("bindBox").style.display = "none";
         document.getElementById("dashboardBox").style.display = "none";
+        document.getElementById("statsBox").style.display = "none";
       }
       callApi("getUserDashboard").then(res => {
         document.getElementById("loadingBox").style.display = "none";
@@ -385,6 +448,74 @@
         }
       }).catch(err => {
         showBindScreen("後端讀取失敗：" + err.message);
+      });
+    }
+
+    // ===== 學生端切換「我的賽程」與「比賽統計」=====
+    function switchStudentTab(tab) {
+      const isStats = (tab === "stats");
+      document.getElementById("stuTabMatch").classList.toggle("active", !isStats);
+      document.getElementById("stuTabStats").classList.toggle("active", isStats);
+      document.getElementById("stuMatchCard").style.display = isStats ? "none" : "block";
+      document.getElementById("statsBox").style.display = isStats ? "block" : "none";
+      if (isStats) {
+        loadStats(true, currentStudent ? currentStudent.peclass : "");
+      }
+    }
+
+    // ===== 共用：載入比賽統計與積分排行榜 =====
+    function loadStats(resetPool = false, presetClass = "") {
+      const clsSel = document.getElementById("stClass");
+      const typeSel = document.getElementById("stType");
+      const poolSel = document.getElementById("stPool");
+
+      const reqClass = presetClass || clsSel.value || "";
+      const reqType = typeSel.value || "single";
+      const reqPool = resetPool ? "ALL" : (poolSel.value || "ALL");
+
+      document.getElementById("stRankBody").innerHTML = '<tr><td colspan="7" style="padding:16px; color:#888;">統計計算中...</td></tr>';
+
+      callApi("getStats", { peclass: reqClass, matchType: reqType, pool: reqPool }).then(res => {
+        if (res.classes && res.classes.length) {
+          clsSel.innerHTML = res.classes.map(c =>
+            '<option value="' + esc(c) + '"' + (c === res.currentClass ? ' selected' : '') + '>' + esc(c) + '</option>'
+          ).join("");
+        }
+
+        if (resetPool) {
+          poolSel.innerHTML = '<option value="ALL">全部組別</option>' +
+            (res.pools || []).map(p => '<option value="' + esc(p) + '">第 ' + esc(p) + ' 組</option>').join("");
+        }
+
+        document.getElementById("stTotal").innerText = res.summary.total;
+        document.getElementById("stDone").innerText = res.summary.done;
+        document.getElementById("stPending").innerText = res.summary.pending;
+        document.getElementById("stProg").innerText = res.summary.progress + "%";
+        document.getElementById("stProgBar").style.width = res.summary.progress + "%";
+
+        const tbody = document.getElementById("stRankBody");
+        if (!res.ranking || res.ranking.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="padding:18px; color:#888;">目前尚無已完賽 (GAME=yes) 的統計資料</td></tr>';
+          return;
+        }
+
+        const myId = currentStudent ? String(currentStudent.studentId) : "";
+        const myName = currentStudent ? String(currentStudent.name) : "";
+        tbody.innerHTML = res.ranking.map((r, idx) => {
+          const isMe = (myId && String(r.id) === myId) || (myName && String(r.name).includes(myName));
+          const diffStr = r.ptDiff > 0 ? "+" + r.ptDiff : String(r.ptDiff);
+          return '<tr class="' + (isMe ? 'my-row' : '') + '">' +
+            '<td class="' + (idx === 0 ? 'rank-1' : '') + '">' + (idx + 1) + '</td>' +
+            '<td class="name-col">' + esc(r.name) + '<br><span style="font-size:11px; color:#888;">第' + esc(r.pool) + '組</span></td>' +
+            '<td>' + r.wins + '勝' + r.losses + '敗</td>' +
+            '<td>' + r.winRate + '%</td>' +
+            '<td style="font-size:12px;">' + r.ptsFor + '/' + r.ptsAgainst + '</td>' +
+            '<td>' + diffStr + '</td>' +
+            '<td style="font-weight:bold; color:#06C755;">' + r.points + '</td>' +
+          '</tr>';
+        }).join("");
+      }).catch(err => {
+        document.getElementById("stRankBody").innerHTML = '<tr><td colspan="7" style="color:#d32f2f; padding:14px;">統計載入失敗：' + esc(err.message) + '</td></tr>';
       });
     }
 
@@ -412,7 +543,6 @@
       showBindScreen("");
     }
 
-    // ===== 解除綁定（學生／老師共用）=====
     function doUnbind() {
       if (!confirm("確定要解除此 LINE 帳號的綁定嗎？")) return;
       callApi("unbind").then(() => {
@@ -422,7 +552,6 @@
       }).catch(err => alert("解除綁定失敗：" + err.message));
     }
 
-    // ===== 老師綁定 =====
     function toggleTeacherBind(ev) {
       ev.preventDefault();
       const b = document.getElementById("teacherBindBox");
@@ -443,9 +572,9 @@
         .finally(() => { btn.disabled = false; btn.innerText = "綁定為老師"; });
     }
 
-    // ===== 老師：分組配對（單打／雙打／團體賽）=====
+    // ===== 老師：分組配對 =====
     let gStudents = [], gSel = [], gMode = "single", gInited = false;
-    let gDone = { single: {}, double: {}, team: {} };   // 各賽制已完成配對的學生（從畫面移除）
+    let gDone = { single: {}, double: {}, team: {} };
     function visibleStudents() { return gStudents.filter(s => !gDone[gMode][s.id]); }
 
     function initGroupPanel() {
@@ -510,7 +639,6 @@
       renderGroupPreview();
     }
 
-    // 依點選順序切成每組 size 人
     function buildGroups() {
       const size = gMode === "single" ? 1 : gMode === "double" ? 2 : Number(document.getElementById("gTeamSize").value);
       if (size > 1 && gSel.length % size !== 0) {
@@ -553,14 +681,14 @@
       btn.disabled = true; btn.innerText = "建立中...";
       callApi("teacherCreateMatches", { mode: gMode, peclass: cls, pool: pool, groups: r.groups }).then(res => {
         alert(res.message);
-        r.groups.forEach(g => g.forEach(id => { gDone[gMode][id] = true; }));   // 配對完從畫面移除
+        r.groups.forEach(g => g.forEach(id => { gDone[gMode][id] = true; }));
         gSel = [];
         renderGroupStudents();
       }).catch(err => alert("建立失敗：" + err.message))
         .finally(() => { btn.disabled = false; btn.innerText = "產生對戰（循環賽）"; });
     }
 
-    // ===== 老師：資料維護（新增／修改／刪除）=====
+    // ===== 老師：資料維護與統計切換 =====
     let tSheet = "單打紀錄", tHeaders = [], tRows = [], tEditRow = null;
 
     function esc(s) {
@@ -568,7 +696,7 @@
     }
 
     function showTeacher(t) {
-      ["loadingBox", "bindBox", "dashboardBox"].forEach(id => document.getElementById(id).style.display = "none");
+      ["loadingBox", "bindBox", "dashboardBox", "statsBox"].forEach(id => document.getElementById(id).style.display = "none");
       document.getElementById("teacherBox").style.display = "block";
       document.getElementById("teacherTitle").innerText = "👩‍🏫 " + t.name + " 老師";
       loadTeacherData();
@@ -583,9 +711,16 @@
     function loadTeacherData() {
       document.querySelectorAll("#mainTabs .tab-btn").forEach(b => b.classList.toggle("active", b.dataset.s === tSheet));
       const isGroup = (tSheet === "__group__");
-      document.getElementById("tListBox").style.display = isGroup ? "none" : "block";
+      const isStats = (tSheet === "__stats__");
+
+      document.getElementById("tListBox").style.display = (!isGroup && !isStats) ? "block" : "none";
       document.getElementById("groupBox").style.display = isGroup ? "block" : "none";
+      document.getElementById("statsBox").style.display = isStats ? "block" : "none";
+      document.getElementById("teacherCloseBtn").style.display = isStats ? "none" : "block";
+
       if (isGroup) { initGroupPanel(); return; }
+      if (isStats) { loadStats(true); return; }
+
       document.getElementById("tList").innerHTML = '<div class="sub-info" style="padding:16px; text-align:center;">讀取中...</div>';
       callApi("teacherList", { sheet: tSheet }).then(res => {
         tHeaders = res.headers || [];
@@ -658,7 +793,12 @@
 
     function renderDashboard(student, matches) {
       document.getElementById("bindBox").style.display = "none";
+      document.getElementById("statsBox").style.display = "none";
       document.getElementById("dashboardBox").style.display = "block";
+      document.getElementById("stuMatchCard").style.display = "block";
+      document.getElementById("stuTabMatch").classList.add("active");
+      document.getElementById("stuTabStats").classList.remove("active");
+
       document.getElementById("studentTitle").innerText = `${student.name} (${student.studentId})`;
       document.getElementById("studentSub").innerText = `體育班級：${student.peclass}`;
 
@@ -715,7 +855,6 @@
       return a > b ? "A" : (b > a ? "B" : "");
     }
 
-    // 依各局比分計算：誰贏幾局、是否已分出勝負（勝方完全由比分決定）
     function calcSets() {
       const bo1 = readFormat() === "bo1";
       const need = bo1 ? 1 : 2;
@@ -736,7 +875,6 @@
     function updateSets() {
       const bo1 = readFormat() === "bo1";
       document.getElementById("boxSet2").style.display = bo1 ? "none" : "block";
-      // 第 3 局：只有前兩局各勝一局時才出現
       const showSet3 = !bo1 && setWinner(1) && setWinner(2) && setWinner(1) !== setWinner(2);
       document.getElementById("boxSet3").style.display = showSet3 ? "block" : "none";
       for (let i = 1; i <= 3; i++) {
@@ -816,13 +954,11 @@
 
         const msgText = `✅ 賽程成績登錄完成！\n項目：${matchCopy.typeLabel} (第 ${matchCopy.pool} 組)\n對戰：${matchCopy.sideA.name} vs ${matchCopy.sideB.name}\n總分：${res.scoreText}\n勝方：${res.winner}`;
 
-        // 登記成功後留在頁面並重新載入賽程，只有按「關閉」才會離開
         const finish = function() {
           alert(`登記成功！勝方：${res.winner}`);
           loadDashboard(false);
         };
 
-        // sendMessages 只有在 LINE App 內開啟才有效
         let canSend = false;
         try { canSend = liffReady && liff.isInClient(); } catch (e) {}
 
