@@ -327,7 +327,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v6)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v7)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -815,9 +815,10 @@
 
         const msgText = `✅ 賽程成績登錄完成！\n項目：${matchCopy.typeLabel} (第 ${matchCopy.pool} 組)\n對戰：${matchCopy.sideA.name} vs ${matchCopy.sideB.name}\n總分：${res.scoreText}\n勝方：${res.winner}`;
 
+        // 登記成功後留在頁面並重新載入賽程，只有按「關閉」才會離開
         const finish = function() {
           alert(`登記成功！勝方：${res.winner}`);
-          closeLiffWindow();
+          loadDashboard(false);
         };
 
         // sendMessages 只有在 LINE App 內開啟才有效
