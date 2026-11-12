@@ -13,7 +13,7 @@
     .btn-group-sm { display: flex; gap: 6px; }
     .rebind-btn { background: #eee; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; color: #555; cursor: pointer; font-weight: bold; }
     .close-top-btn { background: #333; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; color: #fff; cursor: pointer; font-weight: bold; }
-    input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; }
     .btn { width: 100%; padding: 12px; background: #06C755; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 12px; }
     .btn:disabled { background: #bbb; }
     .btn-dark { background: #374151; margin-top: 8px; }
@@ -49,6 +49,9 @@
     .stepper span { flex: 1; text-align: center; font-size: 16px; font-weight: bold; }
     .btn-cancel { background: #999; margin-top: 8px; }
     .err-msg { color: #d32f2f; font-size: 12px; margin-top: 8px; display: none; }
+    .tabs { display: flex; gap: 6px; }
+    .tab-btn { flex: 1; padding: 8px 4px; border: 1px solid #ddd; background: #fff; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; color: #444; }
+    .tab-btn.active { background: #06C755; color: #fff; border-color: #06C755; }
   </style>
 </head>
 <body>
@@ -64,6 +67,14 @@
     <input type="text" id="inputStudentId" placeholder="請輸入學號（例：14114157）">
     <button class="btn" id="bindBtn" onclick="doBind()">確認綁定學號</button>
     <button class="btn btn-dark" onclick="closeLiffWindow()">關閉視窗回到 LINE BOT</button>
+    <div style="margin-top:14px; border-top:1px solid #eee; padding-top:12px;">
+      <a href="#" onclick="toggleTeacherBind(event)" style="font-size:13px; color:#06C755; font-weight:bold;">👩‍🏫 我是老師（教師綁定）</a>
+      <div id="teacherBindBox" style="display:none;">
+        <input type="text" id="inputTeacherName" placeholder="老師姓名" style="margin-top:8px;">
+        <input type="password" id="inputTeacherCode" placeholder="教師驗證碼" style="margin-top:8px; width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box; font-size:15px;">
+        <button class="btn" id="teacherBindBtn" onclick="doBindTeacher()">綁定為老師</button>
+      </div>
+    </div>
     <div id="bindErr" class="err-msg"></div>
   </div>
 
@@ -77,6 +88,7 @@
         </div>
         <div class="btn-group-sm">
           <button class="rebind-btn" onclick="showRebind()">切換學號</button>
+          <button class="rebind-btn" onclick="doUnbind()">解除綁定</button>
           <button class="close-top-btn" onclick="closeLiffWindow()">✕ 關閉</button>
         </div>
       </div>
@@ -89,6 +101,49 @@
       </div>
       <div id="matchList"></div>
       <button class="btn btn-dark" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
+    </div>
+  </div>
+
+  <!-- 老師管理區塊 -->
+  <div id="teacherBox" style="display:none;">
+    <div class="card">
+      <div class="header-bar">
+        <div>
+          <h3 id="teacherTitle" style="margin-bottom:4px;">老師</h3>
+          <div class="sub-info">可新增、修改、刪除賽程與名單資料</div>
+        </div>
+        <div class="btn-group-sm">
+          <button class="rebind-btn" onclick="doUnbind()">解除綁定</button>
+          <button class="close-top-btn" onclick="closeLiffWindow()">✕ 關閉</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn" data-s="單打紀錄" onclick="setTeacherSheet('單打紀錄')">單打紀錄</button>
+        <button class="tab-btn" data-s="雙打紀錄" onclick="setTeacherSheet('雙打紀錄')">雙打紀錄</button>
+        <button class="tab-btn" data-s="學生分組表" onclick="setTeacherSheet('學生分組表')">學生名單</button>
+      </div>
+      <input type="text" id="tSearch" placeholder="搜尋（班級、姓名、學號…）" oninput="renderTeacherList()" style="margin-top:10px;">
+      <div class="header-bar" style="margin:10px 0;">
+        <span id="tCount" class="sub-info"></span>
+        <div class="btn-group-sm">
+          <button class="rebind-btn" onclick="loadTeacherData()">↻ 重新整理</button>
+          <button class="rebind-btn" style="background:#06C755; color:#fff;" onclick="openRowEditor(null)">➕ 新增</button>
+        </div>
+      </div>
+      <div id="tList"></div>
+      <button class="btn btn-dark" onclick="closeLiffWindow()">🔙 關閉視窗回到 LINE BOT</button>
+    </div>
+  </div>
+
+  <!-- 資料編輯視窗 -->
+  <div id="rowModal" class="modal-overlay">
+    <div class="modal-box">
+      <h3 id="rowModalTitle" style="margin-bottom:10px;"></h3>
+      <div id="rowFields"></div>
+      <button class="btn" id="rowSaveBtn" onclick="saveRow()">儲存</button>
+      <button class="btn btn-cancel" onclick="closeRowModal()">取消</button>
     </div>
   </div>
 
@@ -236,7 +291,7 @@
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-      logStep("1. 網頁載入完成 (版本 v3)，初始化 LIFF...");
+      logStep("1. 網頁載入完成 (版本 v4)，初始化 LIFF...");
       if (typeof liff === 'undefined') {
         showFatal("無法載入 LINE LIFF SDK，請檢查網路。");
         return;
@@ -283,6 +338,7 @@
     function showBindScreen(hintText) {
       document.getElementById("loadingBox").style.display = "none";
       document.getElementById("dashboardBox").style.display = "none";
+      document.getElementById("teacherBox").style.display = "none";
       document.getElementById("bindBox").style.display = "block";
       if (hintText) {
         const errEl = document.getElementById("bindErr");
@@ -294,6 +350,7 @@
     function loadDashboard(showFullLoading = true) {
       if (showFullLoading) {
         document.getElementById("loadingBox").style.display = "block";
+        document.getElementById("teacherBox").style.display = "none";
         document.getElementById("bindBox").style.display = "none";
         document.getElementById("dashboardBox").style.display = "none";
       }
@@ -302,6 +359,7 @@
         if (!res || !res.isBound) {
           showBindScreen("");
         } else {
+          if (res.role === "teacher") { showTeacher(res.teacher); return; }
           currentStudent = res.student;
           currentMatches = res.matches || [];
           renderDashboard(currentStudent, currentMatches);
@@ -333,6 +391,129 @@
 
     function showRebind() {
       showBindScreen("");
+    }
+
+    // ===== 解除綁定（學生／老師共用）=====
+    function doUnbind() {
+      if (!confirm("確定要解除此 LINE 帳號的綁定嗎？")) return;
+      callApi("unbind").then(() => {
+        alert("已解除綁定。");
+        currentStudent = null; currentMatches = [];
+        showBindScreen("");
+      }).catch(err => alert("解除綁定失敗：" + err.message));
+    }
+
+    // ===== 老師綁定 =====
+    function toggleTeacherBind(ev) {
+      ev.preventDefault();
+      const b = document.getElementById("teacherBindBox");
+      b.style.display = (b.style.display === "none") ? "block" : "none";
+    }
+
+    function doBindTeacher() {
+      const name = document.getElementById("inputTeacherName").value.trim();
+      const code = document.getElementById("inputTeacherCode").value.trim();
+      if (!name || !code) { alert("請輸入老師姓名與教師驗證碼！"); return; }
+      const btn = document.getElementById("teacherBindBtn");
+      btn.disabled = true; btn.innerText = "綁定中...";
+      callApi("bindTeacher", { name: name, code: code }).then(res => {
+        alert(res.message);
+        document.getElementById("inputTeacherCode").value = "";
+        loadDashboard(true);
+      }).catch(err => alert("老師綁定失敗：" + err.message))
+        .finally(() => { btn.disabled = false; btn.innerText = "綁定為老師"; });
+    }
+
+    // ===== 老師：資料維護（新增／修改／刪除）=====
+    let tSheet = "單打紀錄", tHeaders = [], tRows = [], tEditRow = null;
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    }
+
+    function showTeacher(t) {
+      ["loadingBox", "bindBox", "dashboardBox"].forEach(id => document.getElementById(id).style.display = "none");
+      document.getElementById("teacherBox").style.display = "block";
+      document.getElementById("teacherTitle").innerText = "👩‍🏫 " + t.name + " 老師";
+      loadTeacherData();
+    }
+
+    function setTeacherSheet(name) {
+      tSheet = name;
+      document.getElementById("tSearch").value = "";
+      loadTeacherData();
+    }
+
+    function loadTeacherData() {
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.s === tSheet));
+      document.getElementById("tList").innerHTML = '<div class="sub-info" style="padding:16px; text-align:center;">讀取中...</div>';
+      callApi("teacherList", { sheet: tSheet }).then(res => {
+        tHeaders = res.headers || [];
+        tRows = res.rows || [];
+        renderTeacherList();
+      }).catch(err => {
+        document.getElementById("tList").innerText = "讀取失敗：" + err.message;
+      });
+    }
+
+    function renderTeacherList() {
+      const kw = document.getElementById("tSearch").value.trim().toLowerCase();
+      const list = document.getElementById("tList");
+      list.innerHTML = "";
+      const rows = tRows.filter(r => !kw || r.cells.join(" ").toLowerCase().includes(kw));
+      document.getElementById("tCount").innerText = "共 " + rows.length + " 筆" + (rows.length > 50 ? "（只顯示前 50 筆，請用搜尋縮小範圍）" : "");
+      rows.slice(0, 50).forEach(r => {
+        const txt = r.cells.filter(c => String(c).trim() !== "").slice(0, 10).join(" ｜ ");
+        const div = document.createElement("div");
+        div.className = "match-item";
+        div.innerHTML =
+          '<div class="sub-info" style="word-break:break-all;">第 ' + r.rowIndex + ' 列：' + esc(txt) + '</div>' +
+          '<div style="display:flex; gap:8px; margin-top:8px;">' +
+          '<button class="rebind-btn" onclick="openRowEditor(' + r.rowIndex + ')">✏️ 修改</button>' +
+          '<button class="rebind-btn" style="color:#d32f2f;" onclick="deleteRow(' + r.rowIndex + ')">🗑 刪除</button></div>';
+        list.appendChild(div);
+      });
+    }
+
+    function openRowEditor(rowIndex) {
+      tEditRow = rowIndex || null;
+      const row = rowIndex ? tRows.find(r => r.rowIndex === rowIndex) : null;
+      document.getElementById("rowModalTitle").innerText = rowIndex ? "✏️ 修改 " + tSheet + " 第 " + rowIndex + " 列" : "➕ 新增資料（" + tSheet + "）";
+      const box = document.getElementById("rowFields");
+      box.innerHTML = "";
+      tHeaders.forEach((h, i) => {
+        const wrap = document.createElement("div");
+        wrap.style.marginBottom = "8px";
+        wrap.innerHTML = '<span class="section-label" style="margin:0 0 3px;">' + esc(h || ("欄位" + (i + 1))) + '</span>' +
+          '<input type="text" data-i="' + i + '" value="' + esc(row ? row.cells[i] : "") + '">';
+        box.appendChild(wrap);
+      });
+      document.getElementById("rowModal").style.display = "flex";
+    }
+
+    function closeRowModal() {
+      document.getElementById("rowModal").style.display = "none";
+      tEditRow = null;
+    }
+
+    function saveRow() {
+      const cells = Array.from(document.querySelectorAll("#rowFields input")).map(i => i.value);
+      const btn = document.getElementById("rowSaveBtn");
+      btn.disabled = true; btn.innerText = "儲存中...";
+      callApi("teacherSave", { sheet: tSheet, rowIndex: tEditRow, cells: cells }).then(res => {
+        alert(res.message);
+        closeRowModal();
+        loadTeacherData();
+      }).catch(err => alert("儲存失敗：" + err.message))
+        .finally(() => { btn.disabled = false; btn.innerText = "儲存"; });
+    }
+
+    function deleteRow(rowIndex) {
+      if (!confirm("確定要刪除「" + tSheet + "」第 " + rowIndex + " 列嗎？\n此動作無法復原。")) return;
+      callApi("teacherDelete", { sheet: tSheet, rowIndex: rowIndex }).then(res => {
+        alert(res.message);
+        loadTeacherData();
+      }).catch(err => alert("刪除失敗：" + err.message));
     }
 
     function renderDashboard(student, matches) {
